@@ -110,7 +110,8 @@ class MainActivity : Activity() {
         listOf(
             "desktop_spoof.js",
             "spotify_bridge.js",
-            "playlist_sort.js"
+            "playlist_sort.js",
+            "tv_navigation.js"
         ).forEach { asset -> runJs(webView, asset) }
         injectCss(webView)
     }
@@ -140,12 +141,38 @@ class MainActivity : Activity() {
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         return when (keyCode) {
             KeyEvent.KEYCODE_BACK -> {
-                if (webView.canGoBack()) {
-                    webView.goBack()
-                    true
-                } else {
-                    super.onKeyDown(keyCode, event)
+                webView.evaluateJavascript("window.__spotitv_back ? window.__spotitv_back() : false") { result ->
+                    if (result != "true") {
+                        if (webView.canGoBack()) {
+                            webView.goBack()
+                        } else {
+                            finish()
+                        }
+                    }
                 }
+                true
+            }
+            KeyEvent.KEYCODE_DPAD_UP -> {
+                webView.evaluateJavascript("window.__spotitv_nav && window.__spotitv_nav('up')", null)
+                true
+            }
+            KeyEvent.KEYCODE_DPAD_DOWN -> {
+                webView.evaluateJavascript("window.__spotitv_nav && window.__spotitv_nav('down')", null)
+                true
+            }
+            KeyEvent.KEYCODE_DPAD_LEFT -> {
+                webView.evaluateJavascript("window.__spotitv_nav && window.__spotitv_nav('left')", null)
+                true
+            }
+            KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                webView.evaluateJavascript("window.__spotitv_nav && window.__spotitv_nav('right')", null)
+                true
+            }
+            KeyEvent.KEYCODE_DPAD_CENTER,
+            KeyEvent.KEYCODE_ENTER,
+            KeyEvent.KEYCODE_NUMPAD_ENTER -> {
+                webView.evaluateJavascript("window.__spotitv_activate && window.__spotitv_activate()", null)
+                true
             }
             KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
             KeyEvent.KEYCODE_MEDIA_NEXT,

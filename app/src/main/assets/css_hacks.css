@@ -1263,54 +1263,70 @@ body.sf-tv-nav *:focus-visible * {
     outline: none !important;
 }
 
-/* Main focus ring — Spotify green glow on all interactive elements */
+/* Global TV Active Focus Ring */
+.sf-tv-active-focus,
 body.sf-tv-nav a:focus-visible,
 body.sf-tv-nav button:focus-visible,
 body.sf-tv-nav [role="button"]:focus-visible,
 body.sf-tv-nav [role="link"]:focus-visible,
 body.sf-tv-nav [role="menuitem"]:focus-visible,
-body.sf-tv-nav [role="option"]:focus-visible,
 body.sf-tv-nav [role="tab"]:focus-visible,
-body.sf-tv-nav [role="checkbox"]:focus-visible,
-body.sf-tv-nav [role="listitem"]:focus-visible,
-body.sf-tv-nav [tabindex]:focus-visible,
-body.sf-tv-nav input:focus-visible,
-body.sf-tv-nav [data-testid="tracklist-row"]:focus-visible,
-body.sf-tv-nav [data-encore-id="listRow"]:focus-visible {
+body.sf-tv-nav input:focus-visible {
     outline: 3px solid #1db954 !important;
-    outline-offset: 2px !important;
-    box-shadow: 0 0 0 5px rgba(29, 185, 84, 0.25) !important;
-    border-radius: 4px !important;
+    outline-offset: 3px !important;
+    box-shadow: 0 0 0 5px rgba(29, 185, 84, 0.3) !important;
     z-index: 9999 !important;
     position: relative !important;
 }
 
-/* Circular play/skip buttons — rounder ring with stronger glow */
-body.sf-tv-nav button[aria-label*="Play" i]:focus-visible,
-body.sf-tv-nav button[aria-label*="Pause" i]:focus-visible,
-body.sf-tv-nav button[aria-label*="Skip" i]:focus-visible,
-body.sf-tv-nav button[aria-label*="Next" i]:focus-visible,
-body.sf-tv-nav button[aria-label*="Previous" i]:focus-visible,
-body.sf-tv-nav button[data-testid="control-button-playpause"]:focus-visible,
-body.sf-tv-nav button[data-testid="control-button-skip-forward"]:focus-visible,
-body.sf-tv-nav button[data-testid="control-button-skip-back"]:focus-visible {
+/* Cards: Android TV / Leanback Zoom & Shadow */
+[data-encore-id="card"].sf-tv-active-focus,
+.Card.sf-tv-active-focus,
+[data-carousel-gridlist-item="true"].sf-tv-active-focus {
     outline: 3px solid #1db954 !important;
     outline-offset: 4px !important;
-    box-shadow: 0 0 0 6px rgba(29, 185, 84, 0.3), 0 0 16px rgba(29, 185, 84, 0.4) !important;
-    border-radius: 50% !important;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.8), 0 0 0 6px rgba(29, 185, 84, 0.35) !important;
+    transform: scale(1.05) !important;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, outline 0.15s ease !important;
+    border-radius: 8px !important;
+    z-index: 1000 !important;
+    position: relative !important;
 }
 
-/* Tracklist rows — full-width tinted highlight */
+/* Ensure card parents do not clip zoom effect */
+[data-carousel-gridlist-item="true"],
+[data-encore-id="card"],
+.Card {
+    transition: transform 0.15s ease, box-shadow 0.15s ease !important;
+}
+
+/* Tracklist rows — distinct background + left green border */
+div[role="row"].sf-tv-active-focus,
 body.sf-tv-nav [data-testid="tracklist-row"]:focus-visible,
 body.sf-tv-nav [data-encore-id="listRow"]:focus-visible {
-    background-color: rgba(29, 185, 84, 0.08) !important;
+    background-color: rgba(29, 185, 84, 0.18) !important;
+    outline: 2px solid #1db954 !important;
     outline-offset: -2px !important;
     border-radius: 6px !important;
+    border-left: 4px solid #1db954 !important;
+    transform: scale(1.01) !important;
+    transition: background-color 0.1s ease, transform 0.1s ease !important;
+    z-index: 100 !important;
 }
 
-/* Search / text inputs */
-body.sf-tv-nav input:focus-visible {
-    border-radius: 8px !important;
-    box-shadow: 0 0 0 3px rgba(29, 185, 84, 0.5) !important;
+/* Circular buttons */
+button[aria-label*="Play" i].sf-tv-active-focus,
+button[aria-label*="Pause" i].sf-tv-active-focus,
+button[data-testid="control-button-playpause"].sf-tv-active-focus {
+    outline: 3px solid #1db954 !important;
+    outline-offset: 4px !important;
+    box-shadow: 0 0 0 6px rgba(29, 185, 84, 0.35), 0 0 20px rgba(29, 185, 84, 0.5) !important;
+    border-radius: 50% !important;
+    transform: scale(1.08) !important;
 }
 
+/* Remote OK press animation */
+.sf-tv-pressed {
+    transform: scale(0.95) !important;
+    transition: transform 0.08s ease !important;
+}
