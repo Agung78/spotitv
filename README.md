@@ -49,8 +49,21 @@ The wrapper is checked in (`gradlew`, `gradle/wrapper/`). First run downloads AG
 
 ## Install on Android TV
 
+You need the TV on your Wi-Fi with Developer options → USB debugging on (Settings → System → About → Build ×7 → Developer options → USB debugging).
+
+Using the `tv-home/` tooling (Python ADB client, no `adb` binary needed — avoids macOS Local Network blocking):
+
 ```bash
-adb install app/build/outputs/apk/debug/app-debug.apk
+# From the tv-home/ repo:
+./tools/find-tv.sh                                          # finds the TV, saves IP to tools/.tv_host
+./tools/install.sh /path/to/spotitv/app/build/outputs/apk/debug/app-debug.apk
+```
+
+Or with plain `adb` if you have it:
+
+```bash
+adb connect <TV_IP>
+adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
 Launch from the Leanback home screen ("SpotiDuck TV"). D-pad media keys (play/pause, next, previous) route through the `MediaBrowserService` media session into the WebView.
