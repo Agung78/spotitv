@@ -54,6 +54,13 @@ class MainActivity : Activity() {
         // Desktop UA so Spotify serves the desktop web player
         settings.userAgentString =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36"
+        webView.webChromeClient = object : android.webkit.WebChromeClient() {
+            override fun onPermissionRequest(request: android.webkit.PermissionRequest) {
+                runOnUiThread {
+                    request.grant(request.resources)
+                }
+            }
+        }
 
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean {
@@ -111,7 +118,7 @@ class MainActivity : Activity() {
             "desktop_spoof.js",
             "spotify_bridge.js",
             "playlist_sort.js",
-            "tv_navigation.js"
+            "tv_cursor.js"
         ).forEach { asset -> runJs(webView, asset) }
         injectCss(webView)
     }
@@ -153,25 +160,25 @@ class MainActivity : Activity() {
                 true
             }
             KeyEvent.KEYCODE_DPAD_UP -> {
-                webView.evaluateJavascript("window.__spotitv_nav && window.__spotitv_nav('up')", null)
+                webView.evaluateJavascript("window.__spotitv_cursor && window.__spotitv_cursor.keyDown('up')", null)
                 true
             }
             KeyEvent.KEYCODE_DPAD_DOWN -> {
-                webView.evaluateJavascript("window.__spotitv_nav && window.__spotitv_nav('down')", null)
+                webView.evaluateJavascript("window.__spotitv_cursor && window.__spotitv_cursor.keyDown('down')", null)
                 true
             }
             KeyEvent.KEYCODE_DPAD_LEFT -> {
-                webView.evaluateJavascript("window.__spotitv_nav && window.__spotitv_nav('left')", null)
+                webView.evaluateJavascript("window.__spotitv_cursor && window.__spotitv_cursor.keyDown('left')", null)
                 true
             }
             KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                webView.evaluateJavascript("window.__spotitv_nav && window.__spotitv_nav('right')", null)
+                webView.evaluateJavascript("window.__spotitv_cursor && window.__spotitv_cursor.keyDown('right')", null)
                 true
             }
             KeyEvent.KEYCODE_DPAD_CENTER,
             KeyEvent.KEYCODE_ENTER,
             KeyEvent.KEYCODE_NUMPAD_ENTER -> {
-                webView.evaluateJavascript("window.__spotitv_activate && window.__spotitv_activate()", null)
+                webView.evaluateJavascript("window.__spotitv_cursor && window.__spotitv_cursor.click()", null)
                 true
             }
             KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
@@ -182,6 +189,27 @@ class MainActivity : Activity() {
                 true
             }
             else -> super.onKeyDown(keyCode, event)
+        }
+    }
+    override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
+        return when (keyCode) {
+            KeyEvent.KEYCODE_DPAD_UP -> {
+                webView.evaluateJavascript("window.__spotitv_cursor && window.__spotitv_cursor.keyUp('up')", null)
+                true
+            }
+            KeyEvent.KEYCODE_DPAD_DOWN -> {
+                webView.evaluateJavascript("window.__spotitv_cursor && window.__spotitv_cursor.keyUp('down')", null)
+                true
+            }
+            KeyEvent.KEYCODE_DPAD_LEFT -> {
+                webView.evaluateJavascript("window.__spotitv_cursor && window.__spotitv_cursor.keyUp('left')", null)
+                true
+            }
+            KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                webView.evaluateJavascript("window.__spotitv_cursor && window.__spotitv_cursor.keyUp('right')", null)
+                true
+            }
+            else -> super.onKeyUp(keyCode, event)
         }
     }
 
