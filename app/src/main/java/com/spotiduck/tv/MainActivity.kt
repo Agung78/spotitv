@@ -34,30 +34,71 @@ class MainActivity : Activity() {
     }
 
     private fun setupWebView(webView: WebView) {
+        val cookieManager = android.webkit.CookieManager.getInstance()
+        cookieManager.setAcceptCookie(true)
+        cookieManager.setAcceptThirdPartyCookies(webView, true)
+
         val settings = webView.settings
         settings.javaScriptEnabled = true
         settings.domStorageEnabled = true
+        settings.databaseEnabled = true
         settings.mediaPlaybackRequiresUserGesture = false
         settings.setSupportMultipleWindows(false)
+        settings.useWideViewPort = true
+        settings.loadWithOverviewMode = true
 
-        // Desktop UA so Spotify serves the desktop web player (mirrors google_spoof.js in the APK)
+        webView.isFocusable = true
+        webView.isFocusableInTouchMode = true
+        webView.requestFocus()
+
+        // Desktop UA so Spotify serves the desktop web player
         settings.userAgentString =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36"
 
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean {
-                if (url.startsWith("https://open.spotify.com")) return false
-                val intent = Intent(Intent.ACTION_VIEW).apply { data = android.net.Uri.parse(url) }
-                startActivity(intent)
-                return true
+                val host = android.net.Uri.parse(url).host?.lowercase() ?: ""
+                if (host.endsWith("spotify.com") || host.endsWith("google.com") ||
+                    host.endsWith("apple.com") || host.endsWith("facebook.com")) {
+                    return false
+                }
+                return try {
+                    val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))
+                    startActivity(intent)
+                    true
+                } catch (_: Exception) {
+                    false
+                }
             }
 
             override fun onPageFinished(view: WebView, url: String) {
                 super.onPageFinished(view, url)
+
+                val cookies = android.webkit.CookieManager.getInstance().getCookie(url) ?: ""
+                if (cookies.contains("sp_dc=")) {
+                    if (url.contains("accounts.spotify.com")) {
+                        view.loadUrl(getString(R.string.webview_url))
+                        return
+                    }
+                }
+
+                if (url.contains("accounts.spotify.com") || url.contains("/login")) {
+                    runJs(view, "classic_login.js")
+                    runJs(view, "google_spoof.js")
+                    return
+                }
+
                 if (!url.startsWith("https://open.spotify.com")) return
-                // Restore persisted auth token into localStorage so spotify_bridge.js picks it up.
-                val token = prefs.getString(PREF_AUTH_TOKEN, null) ?: return
-                view.evaluateJavascript("localStorage.setItem('spot_auth_token', ${esc(token)})", null)
+
+                val token = prefs.getString(PREF_AUTH_TOKEN, null)
+                if (token != null) {
+                    view.evaluateJavascript("localStorage.setItem('spot_auth_token', ${esc(token)})", null)
+                }
+
+                view.evaluateJavascript(
+                    "window.SF_CONFIG = { guiMode: 'csshack', isCanvasDisabled: false, isFullScreenEnabled: false, isAmoled: false, dockLeftSidebar: false };",
+                    null
+                )
                 injectAssets(view)
             }
         }
@@ -67,12 +108,10 @@ class MainActivity : Activity() {
 
     private fun injectAssets(webView: WebView) {
         listOf(
-            "spotify_bridge.js",
             "desktop_spoof.js",
-            "classic_login.js",
-            "google_spoof.js",
+            "spotify_bridge.js",
             "playlist_sort.js"
-        ).forEach { asset -> runJs(webView, "file:///android_asset/$asset") }
+        ).forEach { asset -> runJs(webView, asset) }
         injectCss(webView)
     }
 
@@ -83,9 +122,9 @@ class MainActivity : Activity() {
 
     private fun injectCss(webView: WebView) {
         val css = readAsset("css_hacks.css") ?: return
-        val escaped = css.replace("\n", "\\n").replace("\\", "\\\\").replace("'", "\\'").replace("\"", "\\\"")
+        val quoted = org.json.JSONObject.quote(css)
         webView.evaluateJavascript(
-            "(function(){var s=document.createElement('style');s.textContent='$escaped';document.head.appendChild(s);})()",
+            "(function(){var s=document.getElementById('sf-custom-style');if(!s){s=document.createElement('style');s.id='sf-custom-style';(document.head||document.documentElement).appendChild(s);}s.textContent=$quoted;})()",
             null
         )
     }
@@ -100,6 +139,14 @@ class MainActivity : Activity() {
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         return when (keyCode) {
+            KeyEvent.KEYCODE_BACK -> {
+                if (webView.canGoBack()) {
+                    webView.goBack()
+                    true
+                } else {
+                    super.onKeyDown(keyCode, event)
+                }
+            }
             KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
             KeyEvent.KEYCODE_MEDIA_NEXT,
             KeyEvent.KEYCODE_MEDIA_PREVIOUS,
