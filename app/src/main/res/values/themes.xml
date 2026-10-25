@@ -1,0 +1,8 @@
+<resources>
+    <style name="Theme.SpotiduckTv" parent="android:Theme">
+        <item name="android:windowBackground">@color/spotify_black</item>
+        <item name="android:windowNoTitle">true</item>
+    </style>
+
+    <style name="Theme.SpotiduckTv.NoActionBar" parent="Theme.SpotiduckTv" />
+</resources>

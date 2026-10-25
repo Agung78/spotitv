@@ -1,0 +1,22 @@
+[
+    {
+        "merged": "com.spotiduck.tv.app-debug-13:/drawable_banner.xml.flat",
+        "source": "com.spotiduck.tv.app-main-15:/drawable/banner.xml"
+    },
+    {
+        "merged": "com.spotiduck.tv.app-debug-13:/mipmap-anydpi-v26_ic_launcher.xml.flat",
+        "source": "com.spotiduck.tv.app-main-15:/mipmap-anydpi-v26/ic_launcher.xml"
+    },
+    {
+        "merged": "com.spotiduck.tv.app-debug-13:/drawable_ic_spotify.xml.flat",
+        "source": "com.spotiduck.tv.app-main-15:/drawable/ic_spotify.xml"
+    },
+    {
+        "merged": "com.spotiduck.tv.app-debug-13:/mipmap-anydpi-v26_ic_launcher_round.xml.flat",
+        "source": "com.spotiduck.tv.app-main-15:/mipmap-anydpi-v26/ic_launcher_round.xml"
+    },
+    {
+        "merged": "com.spotiduck.tv.app-debug-13:/layout_activity_main.xml.flat",
+        "source": "com.spotiduck.tv.app-main-15:/layout/activity_main.xml"
+    }
+]

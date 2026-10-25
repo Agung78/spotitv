@@ -1,0 +1,4 @@
+<resources>
+    <dimen name="banner_width">720dp</dimen>
+    <dimen name="banner_height">240dp</dimen>
+</resources>

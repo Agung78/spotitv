@@ -1,0 +1,17 @@
+R_DEF: Internal format may change without notice
+local
+color spotify_black
+color spotify_green
+dimen banner_height
+dimen banner_width
+drawable banner
+drawable ic_spotify
+id webview
+layout activity_main
+mipmap ic_launcher
+mipmap ic_launcher_round
+string app_name
+string content_description_spotify_logo
+string webview_url
+style Theme.SpotiduckTv
+style Theme.SpotiduckTv.NoActionBar

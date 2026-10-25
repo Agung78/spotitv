@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">SpotiDuck TV</string>
+    <string name="webview_url">https://open.spotify.com</string>
+    <string name="content_description_spotify_logo">Spotify logo</string>
+</resources>

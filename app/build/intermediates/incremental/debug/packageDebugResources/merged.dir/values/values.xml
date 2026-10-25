@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="spotify_black">#121212</color>
+    <color name="spotify_green">#1DB954</color>
+    <dimen name="banner_height">240dp</dimen>
+    <dimen name="banner_width">720dp</dimen>
+    <string name="app_name">SpotiDuck TV</string>
+    <string name="content_description_spotify_logo">Spotify logo</string>
+    <string name="webview_url">https://open.spotify.com</string>
+    <style name="Theme.SpotiduckTv" parent="android:Theme">
+        <item name="android:windowBackground">@color/spotify_black</item>
+        <item name="android:windowNoTitle">true</item>
+    </style>
+    <style name="Theme.SpotiduckTv.NoActionBar" parent="Theme.SpotiduckTv"/>
+</resources>
