@@ -100,9 +100,4 @@
     } catch(e){}
     safeDefine(navigator, 'hardwareConcurrency', function(){ return 16; });
     safeDefine(navigator, 'deviceMemory', function(){ return 16; });
-    try {
-        if (window.AndBridge) {
-            delete window.AndBridge;
-        }
-    } catch(e){}
 })();

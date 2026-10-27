@@ -1,25 +1,46 @@
 package com.spotiduck.tv
 
 import android.app.Activity
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.SharedPreferences
+import android.media.session.PlaybackState
 import android.os.Bundle
+import android.os.PowerManager
 import android.view.KeyEvent
 import android.webkit.JavascriptInterface
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import java.io.BufferedReader
+import java.io.ByteArrayInputStream
 import java.io.InputStreamReader
+import java.net.HttpURLConnection
+import java.net.URL
 
 class MainActivity : Activity() {
 
     private lateinit var webView: WebView
     private lateinit var prefs: SharedPreferences
+    private var wakeLock: PowerManager.WakeLock? = null
+    private var mediaReceiver: BroadcastReceiver? = null
 
     companion object {
         private const val PREF_NAME = "spotiduck"
         private const val PREF_AUTH_TOKEN = "spot_auth_token"
+        private const val PREF_CLI_TOKEN = "spot_cli_token"
+        private const val PREF_DEV_ID = "spot_dev_id"
+        private const val MEDIA_ACTION = "com.spotiduck.tv.MEDIA_ACTION"
+        private val MEDIA_ACTION_JS = mapOf(
+            "play" to "window.actPlayPause&&window.actPlayPause(true)",
+            "pause" to "window.actPlayPause&&window.actPlayPause(false)",
+            "stop" to "window.actPlayPause&&window.actPlayPause(false)",
+            "next" to "window.actSkipForward&&window.actSkipForward()",
+            "previous" to "window.actSkipBack&&window.actSkipBack()"
+        )
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -30,6 +51,16 @@ class MainActivity : Activity() {
 
         setupWebView(webView)
         webView.addJavascriptInterface(SpotiduckBridge(webView), "SpotiduckPlatform")
+        webView.addJavascriptInterface(AndBridge(), "AndBridge")
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                if (intent.action != MEDIA_ACTION) return
+                val js = MEDIA_ACTION_JS[intent.getStringExtra("action")] ?: return
+                webView.evaluateJavascript(js, null)
+            }
+        }
+        mediaReceiver = receiver
+        registerReceiver(receiver, IntentFilter(MEDIA_ACTION))
         webView.loadUrl(getString(R.string.webview_url))
     }
 
@@ -63,6 +94,40 @@ class MainActivity : Activity() {
         }
 
         webView.webViewClient = object : WebViewClient() {
+            // Parsed once from adblock_hosts.txt ("0.0.0.0 host" lines, skips # and blanks)
+            private val adblockHosts: Set<String> by lazy {
+                try {
+                    assets.open("adblock_hosts.txt").bufferedReader().useLines { lines ->
+                        lines.map { it.trim() }.filter { it.isNotEmpty() && !it.startsWith("#") }
+                            .mapNotNull { it.split(Regex("\\s+")).getOrNull(1)?.lowercase() }.toSet()
+                    }
+                } catch (_: Exception) {
+                    emptySet()
+                }
+            }
+
+            private fun blockedResponse(): WebResourceResponse = WebResourceResponse(
+                "text/plain", "utf-8", 200, "OK", emptyMap(),
+                ByteArrayInputStream(ByteArray(0))
+            )
+
+            override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
+                return try {
+                    if ((request.url.host?.lowercase() ?: "") in adblockHosts) blockedResponse() else null
+                } catch (_: Exception) {
+                    null
+                }
+            }
+
+            @Deprecated("Deprecated in Java")
+            override fun shouldInterceptRequest(view: WebView, url: String): WebResourceResponse? {
+                return try {
+                    if ((android.net.Uri.parse(url).host?.lowercase() ?: "") in adblockHosts) blockedResponse() else null
+                } catch (_: Exception) {
+                    null
+                }
+            }
+
             override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean {
                 val host = android.net.Uri.parse(url).host?.lowercase() ?: ""
                 if (host.endsWith("spotify.com") || host.endsWith("google.com") ||
@@ -97,16 +162,24 @@ class MainActivity : Activity() {
 
                 if (!url.startsWith("https://open.spotify.com")) return
 
-                val token = prefs.getString(PREF_AUTH_TOKEN, null)
-                if (token != null) {
-                    view.evaluateJavascript("localStorage.setItem('spot_auth_token', ${esc(token)})", null)
-                }
-
                 view.evaluateJavascript(
                     "window.SF_CONFIG = { guiMode: 'csshack', isCanvasDisabled: false, isFullScreenEnabled: false, isAmoled: false, dockLeftSidebar: false };",
                     null
                 )
+                prefs.getString(PREF_AUTH_TOKEN, null)?.let {
+                    view.evaluateJavascript("localStorage.setItem('spot_auth_token', ${esc(it)})", null)
+                }
+                prefs.getString(PREF_CLI_TOKEN, null)?.let {
+                    view.evaluateJavascript("localStorage.setItem('spot_cli_token', ${esc(it)})", null)
+                }
+                prefs.getString(PREF_DEV_ID, null)?.let {
+                    view.evaluateJavascript("localStorage.setItem('spot_dev_id', ${esc(it)})", null)
+                }
                 injectAssets(view)
+                view.evaluateJavascript(
+                    "try{var t=localStorage.getItem('spot_auth_token'); if(t) SpotiduckPlatform.setToken(t);}catch(e){}",
+                    null
+                )
             }
         }
     }
@@ -116,7 +189,10 @@ class MainActivity : Activity() {
     private fun injectAssets(webView: WebView) {
         listOf(
             "desktop_spoof.js",
+            "google_spoof.js",
             "spotify_bridge.js",
+            "classic_login.js",
+            "facebook_consent.js",
             "playlist_sort.js",
             "tv_cursor.js"
         ).forEach { asset -> runJs(webView, asset) }
@@ -214,6 +290,14 @@ class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
+        try {
+            mediaReceiver?.let { unregisterReceiver(it) }
+        } catch (_: Exception) {
+        }
+        try {
+            if (wakeLock?.isHeld == true) wakeLock?.release()
+        } catch (_: Exception) {
+        }
         webView.destroy()
         super.onDestroy()
     }
@@ -234,11 +318,224 @@ class MainActivity : Activity() {
 
         @JavascriptInterface
         fun setToken(token: String) {
-            prefs.edit().putString(PREF_AUTH_TOKEN, token).apply()
+            try {
+                prefs.edit().putString(PREF_AUTH_TOKEN, token).apply()
+            } catch (_: Exception) {
+            }
         }
 
         private fun dispatch(keyCode: Int) =
             webView.post { SpotiduckMediaBrowserService.lastMediaSession?.controller?.dispatchMediaButtonEvent(
                 android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, keyCode)) }
+    }
+
+    /** Native side of the AndBridge protocol expected by spotify_bridge.js. */
+    private inner class AndBridge {
+        @Volatile private var expanded = false
+        @Volatile private var searchActive = false
+        @Volatile private var cssDone = false
+        @Volatile private var playerReady = false
+        @Volatile private var shutManaged = false
+        @Volatile private var sleepManaged = false
+        @Volatile private var lastUserInfo = ""
+        @Volatile private var lastMediaItems = ""
+        @Volatile private var lastSearch = ""
+
+        @JavascriptInterface
+        fun recMediaStatus(status: String) {
+            try {
+                val session = SpotiduckMediaBrowserService.lastMediaSession ?: return
+                val playing = status.contains("\"playing\":true")
+                val state = if (playing) PlaybackState.STATE_PLAYING else PlaybackState.STATE_PAUSED
+                session.setPlaybackState(PlaybackState.Builder().setState(state, 0, 1f).build())
+            } catch (_: Exception) {
+            }
+        }
+
+        @JavascriptInterface
+        fun recMediaPosition(pos: String) {
+            try {
+                val session = SpotiduckMediaBrowserService.lastMediaSession ?: return
+                val ms = pos.toLongOrNull() ?: pos.toDoubleOrNull()?.toLong() ?: return
+                val cur = session.controller.playbackState
+                val state = cur?.state ?: PlaybackState.STATE_PAUSED
+                session.setPlaybackState(PlaybackState.Builder().setState(state, ms, 1f).build())
+            } catch (_: Exception) {
+            }
+        }
+
+        @JavascriptInterface
+        fun recMediaPosition(pos: Long) {
+            try {
+                val session = SpotiduckMediaBrowserService.lastMediaSession ?: return
+                val cur = session.controller.playbackState
+                val state = cur?.state ?: PlaybackState.STATE_PAUSED
+                session.setPlaybackState(PlaybackState.Builder().setState(state, pos, 1f).build())
+            } catch (_: Exception) {
+            }
+        }
+
+        @JavascriptInterface
+        fun recMediaPosition(pos: Double) {
+            try {
+                recMediaPosition(pos.toLong())
+            } catch (_: Exception) {
+            }
+        }
+
+        @JavascriptInterface
+        fun playLoaded() {
+            try {
+                playerReady = true
+            } catch (_: Exception) {
+            }
+        }
+
+        @JavascriptInterface
+        fun wakeUp() {
+            try {
+                var lock = wakeLock
+                if (lock == null) {
+                    lock = (getSystemService(Context.POWER_SERVICE) as PowerManager)
+                        .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "SpotiduckTV:Wakelock")
+                    lock.setReferenceCounted(false)
+                    wakeLock = lock
+                }
+                if (lock.isHeld != true) lock.acquire()
+            } catch (_: Exception) {
+            }
+        }
+
+        @JavascriptInterface
+        fun wakeOff() {
+            try {
+                val lock = wakeLock
+                if (lock != null && lock.isHeld) lock.release()
+            } catch (_: Exception) {
+            }
+        }
+
+        @JavascriptInterface
+        fun manageTShut(enable: Boolean) {
+            try {
+                shutManaged = enable
+            } catch (_: Exception) {
+            }
+        }
+
+        @JavascriptInterface
+        fun manageTSleep(enable: Boolean) {
+            try {
+                sleepManaged = enable
+            } catch (_: Exception) {
+            }
+        }
+
+        @JavascriptInterface
+        fun deferMessage(msg: String) {
+            try {
+                when (msg) {
+                    "reload" -> webView.post { try { webView.reload() } catch (_: Exception) { } }
+                    "unlock" -> webView.post {
+                        try {
+                            webView.evaluateJavascript("window.actSkipForward&&window.actSkipForward()", null)
+                        } catch (_: Exception) {
+                        }
+                    }
+                }
+            } catch (_: Exception) {
+            }
+        }
+
+        @JavascriptInterface
+        fun setExpanded(value: Boolean) {
+            try {
+                expanded = value
+            } catch (_: Exception) {
+            }
+        }
+
+        @JavascriptInterface
+        fun setSearchActive(value: Boolean) {
+            try {
+                searchActive = value
+            } catch (_: Exception) {
+            }
+        }
+
+        @JavascriptInterface
+        fun cssInjected() {
+            try {
+                cssDone = true
+            } catch (_: Exception) {
+            }
+        }
+
+        @JavascriptInterface
+        fun onUserInfoCaptured(username: String, name: String, avatar: String) {
+            try {
+                lastUserInfo = "$username|$name|$avatar"
+                prefs.edit().putString("spot_user_info", lastUserInfo).apply()
+            } catch (_: Exception) {
+            }
+        }
+
+        @JavascriptInterface
+        fun onMediaItemsLoaded(parentId: String, json: String) {
+            try {
+                lastMediaItems = "$parentId|$json"
+            } catch (_: Exception) {
+            }
+        }
+
+        @JavascriptInterface
+        fun onSearchCompleted(query: String, json: String) {
+            try {
+                lastSearch = "$query|$json"
+            } catch (_: Exception) {
+            }
+        }
+
+        @JavascriptInterface
+        fun nativeFetch(url: String, method: String, headers: String, body: String): String {
+            return try {
+                val conn = URL(url).openConnection() as HttpURLConnection
+                try {
+                    conn.requestMethod = method.ifEmpty { "GET" }
+                    conn.connectTimeout = 15000
+                    conn.readTimeout = 15000
+                    try {
+                        val obj = org.json.JSONObject(headers)
+                        for (key in obj.keys()) conn.setRequestProperty(key, obj.optString(key))
+                    } catch (_: Exception) {
+                    }
+                    if (body.isNotEmpty() && (method == "POST" || method == "PUT" || method == "PATCH")) {
+                        conn.doOutput = true
+                        conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+                    }
+                    val status = conn.responseCode
+                    val stream = if (status in 200..299) conn.inputStream else conn.errorStream
+                    val respBody = try {
+                        stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } ?: ""
+                    } catch (_: Exception) {
+                        ""
+                    }
+                    val headerObj = org.json.JSONObject()
+                    for ((k, v) in conn.headerFields) {
+                        if (k != null) headerObj.put(k, v.joinToString(","))
+                    }
+                    org.json.JSONObject().put("status", status).put("headers", headerObj).put("body", respBody).toString()
+                } finally {
+                    conn.disconnect()
+                }
+            } catch (e: Exception) {
+                try {
+                    org.json.JSONObject().put("status", 0).put("headers", org.json.JSONObject())
+                        .put("body", e.message ?: "").toString()
+                } catch (_: Exception) {
+                    "{\"status\":0,\"headers\":{},\"body\":\"\"}"
+                }
+            }
+        }
     }
 }
